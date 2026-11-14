@@ -113,8 +113,8 @@ pub fun filter(a : zset<k>, pred : k -> e bool) : e zset<k>
 
 // Map can send distinct keys to the same key (weights add, possibly cancelling)
 // and can reorder keys, so the result is re-normalised.
-pub fun map(a : zset<k>, f : k -> e j, jcmp : (j,j) -> order) : e zset<j>
-  from-list(a.items.map(fn(p) (f(p.fst), p.snd)), jcmp)
+pub fun map(a : zset<k>, f : k -> e j, ?cmp : (j,j) -> order) : e zset<j>
+  from-list(a.items.map(fn(p) (f(p.fst), p.snd)), cmp)
 
 // ---------------------------------------------------------------------------
 // Join with explicit key extractors (sort-merge)
@@ -177,7 +177,7 @@ fun items-equal(xs : list<(k,int)>, ys : list<(k,int)>, ?cmp : (k,k) -> order) :
       Nil -> False
       Cons((ky,wy), ys') -> wx == wy && cmp(kx,ky) == Eq && items-equal(xs', ys', cmp)
 
-pub fun equal(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : bool
+pub fun zset/(==)(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : bool
   items-equal(a.items, b.items, cmp)
 
 // ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ pub fun main() : console ()
   // --- group laws -----------------------------------------------------------
   check("a + (-a) = 0", plus(es, neg(es)).is-empty)
   check("plus commutes",
-        equal(plus(es, of-keys([e4])),
+        (plus(es, of-keys([e4])) == 
               plus(of-keys([e4]), es)))
   check("duplicate keys add weights",
         of-keys([e1,e1]).weighted-count == 2)
@@ -262,11 +262,16 @@ pub fun main() : console ()
   val b = of-keys([e3,e4])
   val pname = fn(e : emp) e.dept
   check("filter is linear",
-        equal(filter(plus(a,b), fn(e) e.dept < 30),
-              plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30), emp/cmp), emp/cmp))
+        filter(plus(a,b), fn(e) e.dept < 30)==
+              plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30)))
+
+  check("filter is linear",
+        (
+          a.plus(b).filter(fn(e) e.dept < 30) ==
+          plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30))))
+
   check("map is linear",
-        equal(map(plus(a,b,emp/cmp), pname, cmp),
-              plus(map(a, pname, cmp), map(b, pname, cmp), cmp), cmp))
+        map(plus(a,b,emp/cmp), pname, cmp) == plus(map(a, pname, cmp), map(b, pname, cmp), cmp))
   val depts-of = map(es, pname, cmp)
   println("dept ids of emps (map merges duplicates): " ++ depts-of.show(show))
 
@@ -281,7 +286,7 @@ pub fun main() : console ()
   println("")
   println("delta (recomputed): " ++ delta-direct.show())
   println("delta (incremental): " ++ delta-incr.show())
-  check("bilinear delta identity", equal(delta-direct, delta-incr, row/cmp))
+  check("bilinear delta identity", (delta-direct == delta-incr))
 
   // --- retraction -----------------------------------------------------------
   val gone = emp-dept(neg(of-keys([e1], emp/cmp)), ds)
