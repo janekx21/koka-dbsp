@@ -6,19 +6,19 @@ import std/core/undiv
 // Type and basic constructors
 // ---------------------------------------------------------------------------
 
-struct zset<k>(items : list<(k, int)>)
+pub struct zset<k>(items : list<(k, int)>)
 
-fun zset/show(zset: zset<k>, ?show: (k) -> string) : total string
+pub fun zset/show(zset: zset<k>, ?show: (k) -> string) : total string
   val sign  = fn(w : int) if w > 0 then "+" else ""
   val parts = zset.items.map(fn(p) show(p.fst) ++ " -> " ++ sign(p.snd) ++ p.snd.show)
   "{" ++ parts.join(", ") ++ "}"
 
-fun empty()
+pub fun empty()
   Zset(Nil)  
-fun zset/is-empty(z : zset<k>) : bool
+pub fun zset/is-empty(z : zset<k>) : bool
   z.items.is-nil
 
-fun singleton(key : k, weight : int) : zset<k>
+pub fun singleton(key : k, weight : int) : zset<k>
   if weight == 0 then Zset(Nil) else Zset([(key,weight)])
 
 
@@ -201,105 +201,3 @@ pub fun pair-cmp(ca : (a,a) -> order, cb : (b,b) -> order) : (((a,b),(a,b)) -> o
     val (a1, b1) = p
     val (a2, b2) = q
     ca(a1, a2).andthen(fn() cb(b1, b2))
-
-
-// Main for testing
-//
-
-
-
-struct emp(emp-id : int, name : string, dept : int)
-struct dept(dept-id : int, dept-name : string)
-struct row(name : string, dept-name : string)
-
-
-fun emp/cmp(a : emp, b : emp) : order
-  cmp(a.emp-id, b.emp-id).andthen(fn() cmp(a.name, b.name)).andthen(fn() cmp(a.dept, b.dept))
-
-fun dept/cmp(a : dept, b : dept) : order
-  cmp(a.dept-id, b.dept-id).andthen(fn() cmp(a.dept-name, b.dept-name))
-
-fun row/cmp(a : row, b : row) : order
-  cmp(a.name, b.name).andthen(fn() cmp(a.dept-name, b.dept-name))
-
-fun row/show(r : row) : string
-  "(" ++ r.name ++ ", " ++ r.dept-name ++ ")"
-
-fun emp/show(e : emp) : string
-  "emp(" ++ e.emp-id.show ++ ", " ++ e.name ++ ", " ++ e.dept.show ++ ")"
-
-fun check(label : string, ok : bool) : console ()
-  println((if ok then "ok   " else "FAIL ") ++ label)
-
-// emp ⋈ dept on dept id; output is a plain struct built by the caller
-fun emp-dept(es : zset<emp>, ds : zset<dept>) : zset<row>
-  join(es, ds, fn(e) e.dept, fn(d) d.dept-id, cmp,
-       fn(e,d) Row(e.name, d.dept-name), row/cmp)
-
-
-pub fun main() : console ()
-  val e1 = Emp(1, "ann", 10)
-  val e2 = Emp(2, "bob", 10)
-  val e3 = Emp(3, "cat", 20)
-  val e4 = Emp(4, "dan", 30)   // dept 30 does not exist yet
-  val d10 = Dept(10, "eng")
-  val d20 = Dept(20, "ops")
-  val d30 = Dept(30, "hr")
-
-  val es = of-keys([e1,e2,e3])
-  val ds = of-keys([d10,d20])
-
-  println("emps:   " ++ es.show())
-  println("joined: " ++ emp-dept(es, ds).show())
-  println("")
-
-  // --- group laws -----------------------------------------------------------
-  check("a + (-a) = 0", plus(es, neg(es)).is-empty)
-  check("plus commutes",
-    es.plus(of-keys([e4])) == 
-    of-keys([e4]).plus(es))
-
-  check("duplicate keys add weights",
-        of-keys([e1,e1]).weighted-count == 2)
-  check("insert then delete cancels",
-        from-list([(e1,1),(e1,-1)]).is-empty)
-
-  // --- linear operators -----------------------------------------------------
-  val a = of-keys([e1,e2])
-  val b = of-keys([e3,e4])
-  val pname = fn(e : emp) e.dept
-  check("filter is linear",
-    a.plus(b).filter(fn(e) e.dept < 30)==
-    a.filter(fn(e) e.dept < 30)
-      .plus(b.filter(fn(e) e.dept < 30)))
-
-  check("filter is linear",
-        
-    a.plus(b).filter(fn(e) e.dept < 30) ==
-    filter(a, fn(e) e.dept < 30).plus(filter(b, fn(e) e.dept < 30)))
-
-  check("map is linear",
-    a.plus(b).map(pname)
-    ==
-    a.map(pname).plus(b.map(pname)))
-
-  val depts-of = es.map(pname)
-  println("dept ids of emps (map merges duplicates): " ++ depts-of.show())
-
-  // --- join is bilinear: this identity is what incrementalisation uses ------
-  //   (a+da) ⋈ (b+db)  -  a ⋈ b  =  da ⋈ b  +  a ⋈ db  +  da ⋈ db
-  val da = of-keys([e4])                  // new employee
-  val db = of-keys([d30])                // new department
-  val full  = emp-dept(es.plus(da), ds.plus(db))
-  val delta-direct = full.minus(emp-dept(es,ds))
-  val delta-incr   = plus(plus(emp-dept(da,ds), emp-dept(es,db)),
-                          emp-dept(da,db))
-  println("")
-  println("delta (recomputed): " ++ delta-direct.show())
-  println("delta (incremental): " ++ delta-incr.show())
-  check("bilinear delta identity", delta-direct == delta-incr)
-
-  // --- retraction -----------------------------------------------------------
-  val gone = emp-dept(neg(of-keys([e1])), ds)
-  println("deleting ann gives: " ++ gone.show())
-  check("join with negative weights retracts", gone.weighted-count == -1)
