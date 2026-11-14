@@ -95,12 +95,16 @@ fun merge-items(xs : list<(k,int)>, ys : list<(k,int)>, ?cmp : (k,k) -> order) :
           if w == 0 then merge-items(xs', ys', cmp)
                     else Cons((kx,w), merge-items(xs', ys', cmp))
 
+// TODO this could be (+)
+
 pub fun plus(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : zset<k>
   Zset(merge-items(a.items, b.items, cmp))
 
 pub fun neg(a : zset<k>) : zset<k>
   Zset(a.items.map(fn(p) (p.fst, 0 - p.snd)))
 
+// TODO this could be (-)
+ 
 pub fun minus(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : zset<k>
   plus(a, neg(b), cmp)
 
