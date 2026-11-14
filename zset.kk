@@ -213,7 +213,7 @@ fun emp/cmp(a : emp, b : emp) : order
 fun dept/cmp(a : dept, b : dept) : order
   cmp(a.dept-id, b.dept-id).andthen(fn() cmp(a.dept-name, b.dept-name))
 
-fun row-cmp(a : row, b : row) : order
+fun row/cmp(a : row, b : row) : order
   cmp(a.name, b.name).andthen(fn() cmp(a.dept-name, b.dept-name))
 
 fun row/show(r : row) : string
@@ -228,7 +228,7 @@ fun check(label : string, ok : bool) : console ()
 // emp ⋈ dept on dept id; output is a plain struct built by the caller
 fun emp-dept(es : zset<emp>, ds : zset<dept>) : zset<row>
   join(es, ds, fn(e) e.dept, fn(d) d.dept-id, cmp,
-       fn(e,d) Row(e.name, d.dept-name), row-cmp)
+       fn(e,d) Row(e.name, d.dept-name), row/cmp)
 
 
 pub fun main() : console ()
@@ -248,21 +248,21 @@ pub fun main() : console ()
   println("")
 
   // --- group laws -----------------------------------------------------------
-  check("a + (-a) = 0", plus(es, neg(es), emp/cmp).is-empty)
+  check("a + (-a) = 0", plus(es, neg(es)).is-empty)
   check("plus commutes",
-        equal(plus(es, of-keys([e4], emp/cmp), emp/cmp),
-              plus(of-keys([e4], emp/cmp), es, emp/cmp), emp/cmp))
+        equal(plus(es, of-keys([e4])),
+              plus(of-keys([e4]), es)))
   check("duplicate keys add weights",
-        of-keys([e1,e1], emp/cmp).weighted-count == 2)
+        of-keys([e1,e1]).weighted-count == 2)
   check("insert then delete cancels",
-        from-list([(e1,1),(e1,-1)], emp/cmp).is-empty)
+        from-list([(e1,1),(e1,-1)]).is-empty)
 
   // --- linear operators -----------------------------------------------------
-  val a = of-keys([e1,e2], emp/cmp)
-  val b = of-keys([e3,e4], emp/cmp)
+  val a = of-keys([e1,e2])
+  val b = of-keys([e3,e4])
   val pname = fn(e : emp) e.dept
   check("filter is linear",
-        equal(filter(plus(a,b,emp/cmp), fn(e) e.dept < 30),
+        equal(filter(plus(a,b), fn(e) e.dept < 30),
               plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30), emp/cmp), emp/cmp))
   check("map is linear",
         equal(map(plus(a,b,emp/cmp), pname, cmp),
@@ -275,13 +275,13 @@ pub fun main() : console ()
   val da = of-keys([e4])                  // new employee
   val db = of-keys([d30])                // new department
   val full  = emp-dept(plus(es,da,emp/cmp), plus(ds,db))
-  val delta-direct = minus(full, emp-dept(es,ds), row-cmp)
-  val delta-incr   = plus(plus(emp-dept(da,ds), emp-dept(es,db), row-cmp),
-                          emp-dept(da,db), row-cmp)
+  val delta-direct = minus(full, emp-dept(es,ds), row/cmp)
+  val delta-incr   = plus(plus(emp-dept(da,ds), emp-dept(es,db), row/cmp),
+                          emp-dept(da,db), row/cmp)
   println("")
   println("delta (recomputed): " ++ delta-direct.show())
   println("delta (incremental): " ++ delta-incr.show())
-  check("bilinear delta identity", equal(delta-direct, delta-incr, row-cmp))
+  check("bilinear delta identity", equal(delta-direct, delta-incr, row/cmp))
 
   // --- retraction -----------------------------------------------------------
   val gone = emp-dept(neg(of-keys([e1], emp/cmp)), ds)
