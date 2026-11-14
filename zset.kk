@@ -9,7 +9,9 @@ import std/core/undiv
 struct zset<k>(items : list<(k, int)>)
 
 fun zset/show(zset: zset<k>, ?show: (k) -> string) : total string
-  "[" ++ zset.items.map(fn((i, _)) show(i)).join(", ") ++ "]"
+  val sign  = fn(w : int) if w > 0 then "+" else ""
+  val parts = zset.items.map(fn(p) show(p.fst) ++ " -> " ++ sign(p.snd) ++ p.snd.show)
+  "{" ++ parts.join(", ") ++ "}"
 
 fun empty()
   Zset(Nil)  
@@ -250,8 +252,9 @@ pub fun main() : console ()
   // --- group laws -----------------------------------------------------------
   check("a + (-a) = 0", plus(es, neg(es)).is-empty)
   check("plus commutes",
-        (plus(es, of-keys([e4])) == 
-              plus(of-keys([e4]), es)))
+    es.plus(of-keys([e4])) == 
+    of-keys([e4]).plus(es))
+
   check("duplicate keys add weights",
         of-keys([e1,e1]).weighted-count == 2)
   check("insert then delete cancels",
@@ -262,37 +265,37 @@ pub fun main() : console ()
   val b = of-keys([e3,e4])
   val pname = fn(e : emp) e.dept
   check("filter is linear",
-        filter(plus(a,b), fn(e) e.dept < 30)==
-              plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30)))
+    a.plus(b).filter(fn(e) e.dept < 30)==
+    a.filter(fn(e) e.dept < 30)
+      .plus(b.filter(fn(e) e.dept < 30)))
 
   check("filter is linear",
-        (
-          a.plus(b).filter(fn(e) e.dept < 30) ==
-          plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30))))
+        
+    a.plus(b).filter(fn(e) e.dept < 30) ==
+    filter(a, fn(e) e.dept < 30).plus(filter(b, fn(e) e.dept < 30)))
 
   check("map is linear",
-        map(plus(a,b,emp/cmp), pname, cmp) == plus(map(a, pname, cmp), map(b, pname, cmp), cmp))
-  val depts-of = map(es, pname, cmp)
-  println("dept ids of emps (map merges duplicates): " ++ depts-of.show(show))
+    a.plus(b).map(pname)
+    ==
+    a.map(pname).plus(b.map(pname)))
+
+  val depts-of = es.map(pname)
+  println("dept ids of emps (map merges duplicates): " ++ depts-of.show())
 
   // --- join is bilinear: this identity is what incrementalisation uses ------
   //   (a+da) ⋈ (b+db)  -  a ⋈ b  =  da ⋈ b  +  a ⋈ db  +  da ⋈ db
   val da = of-keys([e4])                  // new employee
   val db = of-keys([d30])                // new department
-  val full  = emp-dept(plus(es,da,emp/cmp), plus(ds,db))
-  val delta-direct = minus(full, emp-dept(es,ds), row/cmp)
-  val delta-incr   = plus(plus(emp-dept(da,ds), emp-dept(es,db), row/cmp),
-                          emp-dept(da,db), row/cmp)
+  val full  = emp-dept(es.plus(da), ds.plus(db))
+  val delta-direct = full.minus(emp-dept(es,ds))
+  val delta-incr   = plus(plus(emp-dept(da,ds), emp-dept(es,db)),
+                          emp-dept(da,db))
   println("")
   println("delta (recomputed): " ++ delta-direct.show())
   println("delta (incremental): " ++ delta-incr.show())
-  check("bilinear delta identity", (delta-direct == delta-incr))
+  check("bilinear delta identity", delta-direct == delta-incr)
 
   // --- retraction -----------------------------------------------------------
-  val gone = emp-dept(neg(of-keys([e1], emp/cmp)), ds)
+  val gone = emp-dept(neg(of-keys([e1])), ds)
   println("deleting ann gives: " ++ gone.show())
   check("join with negative weights retracts", gone.weighted-count == -1)
-
-// fun main()
-//   val persons = Zset([("Janek", 1)])
-//   println(persons.show())
