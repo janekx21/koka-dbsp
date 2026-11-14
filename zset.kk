@@ -207,12 +207,8 @@ struct dept(dept-id : int, dept-name : string)
 struct row(name : string, dept-name : string)
 
 
-fun emp-cmp(a : emp, b : emp) : order
+fun emp/cmp(a : emp, b : emp) : order
   cmp(a.emp-id, b.emp-id).andthen(fn() cmp(a.name, b.name)).andthen(fn() cmp(a.dept, b.dept))
-
-fun cmp(a : emp, b : emp) : order
-  emp-cmp(a,b)
-
 
 fun dept/cmp(a : dept, b : dept) : order
   cmp(a.dept-id, b.dept-id).andthen(fn() cmp(a.dept-name, b.dept-name))
@@ -252,24 +248,24 @@ pub fun main() : console ()
   println("")
 
   // --- group laws -----------------------------------------------------------
-  check("a + (-a) = 0", plus(es, neg(es), emp-cmp).is-empty)
+  check("a + (-a) = 0", plus(es, neg(es), emp/cmp).is-empty)
   check("plus commutes",
-        equal(plus(es, of-keys([e4], emp-cmp), emp-cmp),
-              plus(of-keys([e4], emp-cmp), es, emp-cmp), emp-cmp))
+        equal(plus(es, of-keys([e4], emp/cmp), emp/cmp),
+              plus(of-keys([e4], emp/cmp), es, emp/cmp), emp/cmp))
   check("duplicate keys add weights",
-        of-keys([e1,e1], emp-cmp).weighted-count == 2)
+        of-keys([e1,e1], emp/cmp).weighted-count == 2)
   check("insert then delete cancels",
-        from-list([(e1,1),(e1,-1)], emp-cmp).is-empty)
+        from-list([(e1,1),(e1,-1)], emp/cmp).is-empty)
 
   // --- linear operators -----------------------------------------------------
-  val a = of-keys([e1,e2], emp-cmp)
-  val b = of-keys([e3,e4], emp-cmp)
+  val a = of-keys([e1,e2], emp/cmp)
+  val b = of-keys([e3,e4], emp/cmp)
   val pname = fn(e : emp) e.dept
   check("filter is linear",
-        equal(filter(plus(a,b,emp-cmp), fn(e) e.dept < 30),
-              plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30), emp-cmp), emp-cmp))
+        equal(filter(plus(a,b,emp/cmp), fn(e) e.dept < 30),
+              plus(filter(a, fn(e) e.dept < 30), filter(b, fn(e) e.dept < 30), emp/cmp), emp/cmp))
   check("map is linear",
-        equal(map(plus(a,b,emp-cmp), pname, cmp),
+        equal(map(plus(a,b,emp/cmp), pname, cmp),
               plus(map(a, pname, cmp), map(b, pname, cmp), cmp), cmp))
   val depts-of = map(es, pname, cmp)
   println("dept ids of emps (map merges duplicates): " ++ depts-of.show(show))
@@ -278,7 +274,7 @@ pub fun main() : console ()
   //   (a+da) ⋈ (b+db)  -  a ⋈ b  =  da ⋈ b  +  a ⋈ db  +  da ⋈ db
   val da = of-keys([e4])                  // new employee
   val db = of-keys([d30])                // new department
-  val full  = emp-dept(plus(es,da,emp-cmp), plus(ds,db))
+  val full  = emp-dept(plus(es,da,emp/cmp), plus(ds,db))
   val delta-direct = minus(full, emp-dept(es,ds), row-cmp)
   val delta-incr   = plus(plus(emp-dept(da,ds), emp-dept(es,db), row-cmp),
                           emp-dept(da,db), row-cmp)
@@ -288,7 +284,7 @@ pub fun main() : console ()
   check("bilinear delta identity", equal(delta-direct, delta-incr, row-cmp))
 
   // --- retraction -----------------------------------------------------------
-  val gone = emp-dept(neg(of-keys([e1], emp-cmp)), ds)
+  val gone = emp-dept(neg(of-keys([e1], emp/cmp)), ds)
   println("deleting ann gives: " ++ gone.show())
   check("join with negative weights retracts", gone.weighted-count == -1)
 
