@@ -127,46 +127,46 @@ pub fun map(a : zset<k>, f : k -> e j, ?cmp : (j,j) -> order) : e zset<j>
 // ---------------------------------------------------------------------------
 
 // Group weighted items by key: ascending keys, each with its (item,weight) run.
-fun group-run(k : k, acc : list<v>, xs : list<(k,v)>, kcmp : (k,k) -> order) : list<(k,list<v>)>
+fun group-run(k : k, acc : list<v>, xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
   match xs
     Nil -> [(k, acc.reverse)]
     Cons((k2,v2), rest) ->
-      if kcmp(k,k2) == Eq then group-run(k, Cons(v2,acc), rest, kcmp)
-      else Cons((k, acc.reverse), group-run(k2, [v2], rest, kcmp))
+      if cmp(k,k2) == Eq then group-run(k, Cons(v2,acc), rest, cmp)
+      else Cons((k, acc.reverse), group-run(k2, [v2], rest, cmp))
 
-fun group-runs(xs : list<(k,v)>, kcmp : (k,k) -> order) : list<(k,list<v>)>
+fun group-runs(xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
   match xs
     Nil -> Nil
-    Cons((k,v), rest) -> group-run(k, [v], rest, kcmp)
+    Cons((k,v), rest) -> group-run(k, [v], rest, cmp)
 
-fun groups(z : zset<a>, key : a -> e k, kcmp : (k,k) -> order) : e list<(k,list<(a,int)>)>
+fun groups(z : zset<a>, key : a -> e k, cmp : (k,k) -> order) : e list<(k,list<(a,int)>)>
   val keyed  = z.items.map(fn(p) (key(p.fst), p))
-  val sorted = keyed.msort(fn(p,q) kcmp(p.fst, q.fst) != Gt)
-  group-runs(sorted, kcmp)
+  val sorted = keyed.msort(fn(p,q) cmp(p.fst, q.fst) != Gt)
+  group-runs(sorted, cmp)
 
 fun join-groups( gl : list<(k,list<(a,int)>)>, gr : list<(k,list<(b,int)>)>
-               , kcmp : (k,k) -> order
-               , f : (a,b) -> e c ) : e list<(c,int)>
+               , f : (a,b) -> e c
+               , ?cmp : (k,k) -> order ) : e list<(c,int)>
   match gl
     Nil -> Nil
     Cons((kl,ls), gl') -> match gr
       Nil -> Nil
-      Cons((kr,rs), gr') -> match kcmp(kl,kr)
-        Lt -> join-groups(gl', gr, kcmp, f)
-        Gt -> join-groups(gl, gr', kcmp, f)
+      Cons((kr,rs), gr') -> match cmp(kl,kr)
+        Lt -> join-groups(gl', gr, f)
+        Gt -> join-groups(gl, gr', f)
         Eq ->
           // within a matching key, every left row pairs with every right row;
           // weights multiply
           val here = ls.flatmap(fn(l) rs.map(fn(r) (f(l.fst, r.fst), l.snd * r.snd)))
-          here ++ join-groups(gl', gr', kcmp, f)
+          here ++ join-groups(gl', gr', f)
 
 // join(a, b, ka, kb, kcmp, f, ccmp): for every pair (x,y) with ka(x) == kb(y),
 // emit f(x,y) with weight w(x) * w(y).
 pub fun join( a : zset<a>, b : zset<b>
-            , ka : a -> e k, kb : b -> e k, kcmp : (k,k) -> order
-            , f : (a,b) -> e c, ccmp : (c,c) -> order ) : e zset<c>
-  val pairs = join-groups(groups(a, ka, kcmp), groups(b, kb, kcmp), kcmp, f)
-  from-list(pairs, ccmp)
+            , ka : a -> e k, kb : b -> e k, f : (a,b) -> e c
+            , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order ) : e zset<c>
+  val pairs = join-groups(groups(a, ka, k/cmp), groups(b, kb, k/cmp), f)
+  from-list(pairs, c/cmp)
 
 // ---------------------------------------------------------------------------
 // Inspection helpers

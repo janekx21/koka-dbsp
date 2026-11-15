@@ -42,7 +42,7 @@ pub fun join-step( st : join-state<a,b>, da : zset<a>, db : zset<b>
                  , acmp : (a,a) -> order, bcmp : (b,b) -> order
                  , kcmp : (k,k) -> order, ccmp : (c,c) -> order )
                  : (join-state<a,b>, zset<c>)
-  val j = fn(x, y) zset/join(x, y, ka, kb, kcmp, f, ccmp)
+  val j = fn(x, y) zset/join(x, y, ka, kb, f, kcmp, ccmp)
   val out = zset/plus(zset/plus(j(da, st.ib), j(st.ia, db), ccmp), j(da, db), ccmp)
   (Join-state(zset/plus(st.ia, da, acmp), zset/plus(st.ib, db, bcmp)), out)
 

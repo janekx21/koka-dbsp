@@ -23,8 +23,8 @@ fun check(label : string, ok : bool) : console ()
 
 // The from-scratch reference query, used to check the incremental circuit.
 fun emp-dept(es : zset<emp>, ds : zset<dept>) : zset<row>
-  zset/join(es, ds, fn(e) e.dept, fn(d) d.dept-id, cmp,
-            fn(e,d) Row(e.name, d.dept-name), row/cmp)
+  zset/join(es, ds, fn(e) e.dept, fn(d) d.dept-id, 
+            fn(e,d) Row(e.name, d.dept-name))
 
 // --- pure step functions: no circuit, no heap -------------------------------
 
