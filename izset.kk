@@ -1,66 +1,70 @@
+// izset.kk -- Z-sets indexed by key, for incremental join state.
+//
+// An indexed Z-set is an ordered map from key to the Z-set of rows with that key.
+// Invariant: no group is empty (a group that cancels to nothing is removed).
+//
+// Compared with the flat zset, this lets a join step touch only the keys that
+// appear in the delta: group the delta (small), then look each key up in the
+// state (O(log n)) instead of regrouping the whole state.
 module izset
 
-import std/core/undiv
 import zset
 import tmap
 
-// ---------------------------------------------------------------------------
-// Type and basic constructors
-// ---------------------------------------------------------------------------
+pub struct izset<k,a>(by-key : tmap<k, zset<a>>)
 
-struct izset<k,a>(groups : tmap<k, zset<a>>)   // invariant: no empty groups
+pub fun empty() : izset<k,a>
+  Izset(tmap/empty())
 
-pub fun izset/show(izset: izset<k, a>, ?k/show: (k) -> string, ?a/show: (zset<a>) -> string) : total string
-  val parts = izset.groups.to-list.map(fn((k, a)) k/show(k) ++ ": " ++ a/show(a))
-  "<" ++ parts.join(", ") ++ ">"
+pub fun is-empty(ix : izset<k,a>) : bool
+  tmap/is-empty(ix.by-key)
 
+// Number of distinct keys.
+pub fun key-count(ix : izset<k,a>) : int
+  tmap/size(ix.by-key)
 
-
-pub fun empty()
-  Izset(tmap/empty())  
-
-pub fun izset/is-empty(z : izset<k,a>) : bool
-  z.groups.is-empty
-
-// // ------------------------
-// // Operations
-// // ------------------------
-
-pub fun index-by(z : zset<a>, key: (a) -> k, ?k/cmp: (k,k) -> order, ?a/cmp: (a,a) -> order) : e izset<k,a>
-  val gs = z.groups(key,k/cmp).map(fn((k, g)) (k,zset/from-list(g, a/cmp)))
-  val t =  tmap/from-list(gs)
-  Izset(t)
-
-pub fun add(state: izset<k,a>, delta: izset<k, a>, ?a/cmp: (a,a) -> order, ?k/cmp: (k,k) -> order) : e izset<k,a>
-  val merge = fn(m, n, cmp)
-    match m
-      Just(z) -> Just(z.plus(n, cmp))
-      Nothing -> Just(n)
-
-  val dgs = delta.groups
-  val gs = dgs.fold(state.groups, fn(t,k,v) t.alter(k, fn (m) merge(m, v, a/cmp) ,k/cmp))
-  Izset(gs)
-
-
-pub fun lookup(ix: izset<k,a>, key: k, ?cmp: (k,k) -> order) : zset<a>
-  match ix.groups.lookup(key)
-    Just(z) -> z
+// The rows with this key (empty if none).
+pub fun lookup(ix : izset<k,a>, key : k, ?k/cmp : (k,k) -> order) : zset<a>
+  match tmap/lookup(ix.by-key, key, k/cmp)
     Nothing -> zset/empty()
-  
-  
+    Just(g) -> g
 
-fun ok(label : string, cond : bool) : console bool
-  println((if cond then "ok   " else "FAIL ") ++ label)
-  cond
+// Index a (small) Z-set by key. `groups` sorts by key with a stable sort, so each
+// group's rows stay in the zset's own order and need no re-sorting.
+pub fun index-by(z : zset<a>, key : a -> e k, ?k/cmp : (k,k) -> order) : e izset<k,a>
+  val gs = zset/groups(z, key, k/cmp)
+  Izset(gs.foldl(tmap/empty(), fn(t, g) tmap/insert(t, g.fst, Zset(g.snd), k/cmp)))
 
-fun main()
-  println("== unit ==")
-  val deltas = zset/of-keys([1,2,3,4,5])
-  val ix = deltas.index-by(fn(i) i%3)
-  ok("lookup: valid key", ix.lookup(0) == zset/of-keys([3]))
-  ok("lookup: invalid key is empty", ix.lookup(99) == zset/of-keys([]))
+// state + delta: one O(log n) update per key in the delta. A group that sums to
+// empty is deleted from the map.
+pub fun add-delta(state : izset<k,a>, delta : izset<k,a>, ?a/cmp : (a,a) -> order, ?k/cmp : (k,k) -> order) : izset<k,a>
+  fun merge-group(old, dg)
+    match old
+      Nothing -> Just(dg)
+      Just(g) ->
+        val merged = zset/plus(g, dg, a/cmp)
+        if zset/is-empty(merged) then Nothing else Just(merged)
+  Izset(tmap/fold(delta.by-key, state.by-key,
+    fn(t, key, dg) tmap/alter(t, key, fn(old) merge-group(old, dg), k/cmp)))
 
-  val deltas2 = zset/of-keys([6,7,8])
-  val ix2 = deltas2.index-by(fn(i) i%3)
-  ok("add: linear", ix.add(ix2).groups.to-list == (deltas.plus(deltas2)).index-by(fn(i) i%3).groups.to-list)
-  
+// Pair every row of `small` with the rows of `big` that share its key, using f.
+// Cost: one lookup in `big` per key of `small`, plus the matches produced.
+// Weights multiply. The result is an unsorted list (the caller normalises it).
+pub fun probe( small : izset<k,a>, big : izset<k,b>, f : (a,b) -> c
+             , ?k/cmp : (k,k) -> order ) : list<(c,int)>
+  fun visit(acc, key, ga)
+    match tmap/lookup(big.by-key, key, k/cmp)
+      Nothing -> acc
+      Just(gb) -> ga.items.flatmap(fn(l) gb.items.map(fn(r) (f(l.fst, r.fst), l.snd * r.snd))) ++ acc
+  tmap/fold(small.by-key, Nil, visit)
+
+// ---- inspection (tests, debugging) -----------------------------------------
+
+// Forget the index: all rows as one Z-set.
+pub fun to-zset(ix : izset<k,a>, ?a/cmp : (a,a) -> order) : zset<a>
+  zset/from-list(tmap/fold(ix.by-key, Nil, fn(acc, _k, g) g.items ++ acc), a/cmp)
+
+// Tree invariants hold and no group is empty.
+pub fun valid(ix : izset<k,a>, ?k/cmp : (k,k) -> order) : bool
+  tmap/valid(ix.by-key, k/cmp) &&
+    tmap/fold(ix.by-key, True, fn(ok, _k, g) ok && not(zset/is-empty(g)))

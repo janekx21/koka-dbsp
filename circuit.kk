@@ -16,6 +16,7 @@ module circuit
 
 import std/core/undiv
 import zset
+import izset
 
 // ---------------------------------------------------------------------------
 // Layer 1: pure step functions
@@ -32,19 +33,27 @@ pub fun differentiate-step(prev : zset<a>, cur : zset<a>, ?cmp : (a,a) -> order)
 
 // Join is bilinear, so with ia, ib = integrals of everything seen so far:
 //   d(a join b) = da join ib  +  ia join db  +  da join db
-pub struct join-state<a,b>(ia : zset<a>, ib : zset<b>)
+//
+// The integrals are kept indexed by join key (see izset.kk). A step groups only the
+// deltas, then probes the other side's index once per delta key, so its cost depends
+// on the size of the deltas and the number of matches, not on the size of the state.
+pub struct join-state<k,a,b>(ia : izset<k,a>, ib : izset<k,b>)
 
-pub fun join-state()
-  Join-state(zset/empty(), zset/empty())
+pub fun join-state() : join-state<k,a,b>
+  Join-state(izset/empty(), izset/empty())
 
-pub fun join-step( st : join-state<a,b>, da : zset<a>, db : zset<b>
+pub fun join-step( st : join-state<k,a,b>, da : zset<a>, db : zset<b>
                  , ka : a -> k, kb : b -> k, f : (a,b) -> c
-                 , acmp : (a,a) -> order, bcmp : (b,b) -> order
-                 , kcmp : (k,k) -> order, ccmp : (c,c) -> order )
-                 : (join-state<a,b>, zset<c>)
-  val j = fn(x, y) zset/join(x, y, ka, kb, f, kcmp, ccmp)
-  val out = zset/plus(zset/plus(j(da, st.ib), j(st.ia, db), ccmp), j(da, db), ccmp)
-  (Join-state(zset/plus(st.ia, da, acmp), zset/plus(st.ib, db, bcmp)), out)
+                 , ?a/cmp : (a,a) -> order, ?b/cmp : (b,b) -> order
+                 , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order )
+                 : (join-state<k,a,b>, zset<c>)
+  val dai  = index-by(da, ka, k/cmp)
+  val dbi  = index-by(db, kb, k/cmp)
+  val out1 = probe(dai, st.ib, f, k/cmp)                       // da  join ib
+  val out2 = probe(dbi, st.ia, fn(y, x) f(x, y), k/cmp)        // ia  join db  (arguments flipped back)
+  val out3 = probe(dai, dbi, f, k/cmp)                         // da  join db
+  val out  = zset/from-list(out1 ++ out2 ++ out3, c/cmp)       // one normalisation, sized by the output
+  (Join-state(add-delta(st.ia, dai, a/cmp, k/cmp), add-delta(st.ib, dbi, b/cmp, k/cmp)), out)
 
 // ---------------------------------------------------------------------------
 // Layer 2: circuits
