@@ -1,0 +1,246 @@
+module izset
+
+import std/core/undiv
+import zset
+import tmap
+
+// ---------------------------------------------------------------------------
+// Type and basic constructors
+// ---------------------------------------------------------------------------
+
+struct izset<k,a>(groups : tmap<k, zset<a>>)   // invariant: no empty groups
+
+pub fun izset/show(izset: izset<k, a>, ?k/show: (k) -> string, ?a/show: (zset<a>) -> string) : total string
+  val parts = izset.groups.to-list.map(fn((k, a)) k/show(k) ++ ": " ++ a/show(a))
+  "<" ++ parts.join(", ") ++ ">"
+
+
+
+pub fun empty()
+  Izset(tmap/empty())  
+
+pub fun izset/is-empty(z : izset<k,a>) : bool
+  z.groups.is-empty
+
+// // ------------------------
+// // Operations
+// // ------------------------
+
+pub fun index-by(z : zset<a>, key: (a) -> k, ?k/cmp: (k,k) -> order, ?a/cmp: (a,a) -> order) : e izset<k,a>
+  val gs = z.groups(key,k/cmp).map(fn((k, g)) (k,zset/from-list(g, a/cmp)))
+  val t =  tmap/from-list(gs)
+  Izset(t)
+
+pub fun add(state: izset<k,a>, delta: izset<k, a>, a/cmp: (a,a) -> order, k/cmp: (k,k) -> order) : e izset<k,a>
+  val merge = fn(m, n, cmp)
+    match m
+      Just(z) -> Just(z.plus(n, cmp))
+      Nothing -> Just(n)
+
+  val dgs = delta.groups
+  val gs = dgs.fold(state.groups, fn(t,k,v) t.alter(k, fn (m) merge(m, v, a/cmp) ,k/cmp))
+  Izset(gs)
+
+
+pub fun lookup(ix: izset<k,a>, key: k, ?cmp: (k,k) -> order) : zset<a>
+  match ix.groups.lookup(key)
+    Just(z) -> z
+    Nothing -> zset/empty()
+  
+  
+
+fun ok(label : string, cond : bool) : console bool
+  println((if cond then "ok   " else "FAIL ") ++ label)
+  cond
+
+fun main()
+  println("== unit ==")
+  val deltas = zset/of-keys([1,2,3,4,5])
+  val ix = deltas.index-by(fn(i) i%3)
+  ok("lookup: valid key", ix.lookup(0) == zset/of-keys([3]))
+  ok("lookup: invalid key is empty", ix.lookup(99) == zset/of-keys([]))
+  
+  
+// pub fun singleton(key : k, weight : int) : zset<k>
+//   if weight == 0 then Izset(Nil) else Izset([(key,weight)])
+
+
+// // ---------------------------------------------------------------------------
+// // Stable merge sort (used to normalise arbitrary lists of weighted keys)
+// // ---------------------------------------------------------------------------
+
+// // `le(x,y)` = "x may come before y"; taking the left element on ties keeps it stable.
+// fun msort-merge(xs : list<a>, ys : list<a>, le : (a,a) -> bool) : list<a>
+//   match xs
+//     Nil -> ys
+//     Cons(x, xs') -> match ys
+//       Nil -> xs
+//       Cons(y, ys') ->
+//         if le(x,y) then Cons(x, msort-merge(xs', ys, le))
+//                    else Cons(y, msort-merge(xs, ys', le))
+
+// // Recursion on a size counter is not structural, so Koka infers `div` here.
+// // It does terminate (n strictly halves), so we discharge `div` in `msort`.
+// fun msort-n(xs : list<a>, n : int, le : (a,a) -> bool) : div list<a>
+//   if n <= 1 then xs else
+//     val h = n / 2
+//     msort-merge(msort-n(xs.take(h), h, le), msort-n(xs.drop(h), n - h, le), le)
+
+// pub fun msort(xs : list<a>, le : (a,a) -> bool) : list<a>
+//   pretend-no-div(fn() msort-n(xs, xs.length, le))
+
+// // ---------------------------------------------------------------------------
+// // Normalisation: sort, add weights of equal keys, drop zeros
+// // ---------------------------------------------------------------------------
+
+// // Walk a key-sorted list, adding up runs of equal keys and dropping zero totals.
+// // Structural recursion on `xs`, carrying the current run (k, w).
+// fun consolidate-run(k : k, w : int, xs : list<(k,int)>, ?cmp : (k,k) -> order) : list<(k,int)>
+//   match xs
+//     Nil -> if w == 0 then Nil else [(k,w)]
+//     Cons((k2,w2), rest) ->
+//       if cmp(k,k2) == Eq then consolidate-run(k, w + w2, rest, cmp)
+//       elif w == 0 then consolidate-run(k2, w2, rest, cmp)
+//       else Cons((k,w), consolidate-run(k2, w2, rest, cmp))
+
+// fun consolidate(xs : list<(k,int)>, ?cmp : (k,k) -> order) : list<(k,int)>
+//   match xs
+//     Nil -> Nil
+//     Cons((k,w), rest) -> consolidate-run(k, w, rest, cmp)
+
+// pub fun from-list(xs : list<(k,int)>, ?cmp : (k,k) -> order) : zset<k>
+//   val sorted = xs.msort(fn(p,q) cmp(p.fst, q.fst) != Gt)
+//   Zset(consolidate(sorted, cmp))
+
+// // Convenience: every key gets weight +1 (a plain set of insertions).
+// pub fun of-keys(xs : list<k>, ?cmp : (k,k) -> order) : zset<k>
+//   from-list(xs.map(fn(x) (x,1)), cmp)
+
+// pub fun to-list(z : zset<k>) : list<(k,int)>
+//   z.items
+
+
+
+// // ---------------------------------------------------------------------------
+// // The abelian group structure: plus, neg, minus
+// // ---------------------------------------------------------------------------
+
+// fun merge-items(xs : list<(k,int)>, ys : list<(k,int)>, ?cmp : (k,k) -> order) : list<(k,int)>
+//   match xs
+//     Nil -> ys
+//     Cons((kx,wx), xs') -> match ys
+//       Nil -> xs
+//       Cons((ky,wy), ys') -> match cmp(kx,ky)
+//         Lt -> Cons((kx,wx), merge-items(xs', ys, cmp))
+//         Gt -> Cons((ky,wy), merge-items(xs, ys', cmp))
+//         Eq ->
+//           val w = wx + wy
+//           if w == 0 then merge-items(xs', ys', cmp)
+//                     else Cons((kx,w), merge-items(xs', ys', cmp))
+
+// // TODO this could be (+)
+
+// pub fun plus(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : zset<k>
+//   Zset(merge-items(a.items, b.items, cmp))
+
+// pub fun neg(a : zset<k>) : zset<k>
+//   Zset(a.items.map(fn(p) (p.fst, 0 - p.snd)))
+
+// // TODO this could be (-)
+ 
+// pub fun minus(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : zset<k>
+//   plus(a, neg(b), cmp)
+
+// // 
+// // ---------------------------------------------------------------------------
+// // Linear operators
+// // ---------------------------------------------------------------------------
+
+// // Selection preserves order and weights, so no re-sorting is needed.
+// pub fun filter(a : zset<k>, pred : k -> e bool) : e zset<k>
+//   Zset(a.items.filter(fn(p) pred(p.fst)))
+
+// // Map can send distinct keys to the same key (weights add, possibly cancelling)
+// // and can reorder keys, so the result is re-normalised.
+// pub fun map(a : zset<k>, f : k -> e j, ?cmp : (j,j) -> order) : e zset<j>
+//   from-list(a.items.map(fn(p) (f(p.fst), p.snd)), cmp)
+
+// // ---------------------------------------------------------------------------
+// // Join with explicit key extractors (sort-merge)
+// // ---------------------------------------------------------------------------
+
+// // Group weighted items by key: ascending keys, each with its (item,weight) run.
+// fun group-run(k : k, acc : list<v>, xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
+//   match xs
+//     Nil -> [(k, acc.reverse)]
+//     Cons((k2,v2), rest) ->
+//       if cmp(k,k2) == Eq then group-run(k, Cons(v2,acc), rest, cmp)
+//       else Cons((k, acc.reverse), group-run(k2, [v2], rest, cmp))
+
+// fun group-runs(xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
+//   match xs
+//     Nil -> Nil
+//     Cons((k,v), rest) -> group-run(k, [v], rest, cmp)
+
+// fun groups(z : zset<a>, key : a -> e k, cmp : (k,k) -> order) : e list<(k,list<(a,int)>)>
+//   val keyed  = z.items.map(fn(p) (key(p.fst), p))
+//   val sorted = keyed.msort(fn(p,q) cmp(p.fst, q.fst) != Gt)
+//   group-runs(sorted, cmp)
+
+// fun join-groups( gl : list<(k,list<(a,int)>)>, gr : list<(k,list<(b,int)>)>
+//                , f : (a,b) -> e c
+//                , ?cmp : (k,k) -> order ) : e list<(c,int)>
+//   match gl
+//     Nil -> Nil
+//     Cons((kl,ls), gl') -> match gr
+//       Nil -> Nil
+//       Cons((kr,rs), gr') -> match cmp(kl,kr)
+//         Lt -> join-groups(gl', gr, f)
+//         Gt -> join-groups(gl, gr', f)
+//         Eq ->
+//           // within a matching key, every left row pairs with every right row;
+//           // weights multiply
+//           val here = ls.flatmap(fn(l) rs.map(fn(r) (f(l.fst, r.fst), l.snd * r.snd)))
+//           here ++ join-groups(gl', gr', f)
+
+// // join(a, b, ka, kb, kcmp, f, ccmp): for every pair (x,y) with ka(x) == kb(y),
+// // emit f(x,y) with weight w(x) * w(y).
+// pub fun join( a : zset<a>, b : zset<b>
+//             , ka : a -> e k, kb : b -> e k, f : (a,b) -> e c
+//             , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order ) : e zset<c>
+//   val pairs = join-groups(groups(a, ka, k/cmp), groups(b, kb, k/cmp), f)
+//   from-list(pairs, c/cmp)
+
+// // ---------------------------------------------------------------------------
+// // Inspection helpers
+// // ---------------------------------------------------------------------------
+
+// // Sum of all weights (the multiset cardinality).
+// pub fun weighted-count(z : zset<k>) : int
+//   z.items.foldl(0, fn(acc,p) acc + p.snd)
+
+// fun items-equal(xs : list<(k,int)>, ys : list<(k,int)>, ?cmp : (k,k) -> order) : bool
+//   match xs
+//     Nil -> ys.is-nil
+//     Cons((kx,wx), xs') -> match ys
+//       Nil -> False
+//       Cons((ky,wy), ys') -> wx == wy && cmp(kx,ky) == Eq && items-equal(xs', ys', cmp)
+
+// pub fun zset/(==)(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : bool
+//   items-equal(a.items, b.items, cmp)
+
+// // ---------------------------------------------------------------------------
+// // Ordering helpers for building `cmp` functions
+// // ---------------------------------------------------------------------------
+
+// // Lexicographic combination: `cmp(a.x, b.x).andthen(fn() cmp(a.y, b.y))`
+// pub fun andthen(o : order, next : () -> order) : order
+//   match o
+//     Eq -> next()
+//     _  -> o
+
+// pub fun pair-cmp(ca : (a,a) -> order, cb : (b,b) -> order) : (((a,b),(a,b)) -> order)
+//   fn(p, q)
+//     val (a1, b1) = p
+//     val (a2, b2) = q
+//     ca(a1, a2).andthen(fn() cb(b1, b2))

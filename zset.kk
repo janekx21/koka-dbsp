@@ -139,7 +139,7 @@ fun group-runs(xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
     Nil -> Nil
     Cons((k,v), rest) -> group-run(k, [v], rest, cmp)
 
-fun groups(z : zset<a>, key : a -> e k, cmp : (k,k) -> order) : e list<(k,list<(a,int)>)>
+pub fun groups(z : zset<a>, key : a -> e k, cmp : (k,k) -> order) : e list<(k,list<(a,int)>)>
   val keyed  = z.items.map(fn(p) (key(p.fst), p))
   val sorted = keyed.msort(fn(p,q) cmp(p.fst, q.fst) != Gt)
   group-runs(sorted, cmp)
