@@ -139,7 +139,7 @@ fun group-runs(xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
     Nil -> Nil
     Cons((k,v), rest) -> group-run(k, [v], rest, cmp)
 
-pub fun groups(z : zset<a>, key : a -> e k, cmp : (k,k) -> order) : e list<(k,list<(a,int)>)>
+pub fun groups(z : zset<a>, key : a -> k, cmp : (k,k) -> order) : list<(k,list<(a,int)>)>
   val keyed  = z.items.map(fn(p) (key(p.fst), p))
   val sorted = keyed.msort(fn(p,q) cmp(p.fst, q.fst) != Gt)
   group-runs(sorted, cmp)
@@ -163,8 +163,8 @@ fun join-groups( gl : list<(k,list<(a,int)>)>, gr : list<(k,list<(b,int)>)>
 // join(a, b, ka, kb, kcmp, f, ccmp): for every pair (x,y) with ka(x) == kb(y),
 // emit f(x,y) with weight w(x) * w(y).
 pub fun join( a : zset<a>, b : zset<b>
-            , ka : a -> e k, kb : b -> e k, f : (a,b) -> e c
-            , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order ) : e zset<c>
+            , ka : a -> k, kb : b -> k, f : (a,b) -> c
+            , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order ) : zset<c>
   val pairs = join-groups(groups(a, ka, k/cmp), groups(b, kb, k/cmp), f)
   from-list(pairs, c/cmp)
 

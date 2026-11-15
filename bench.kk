@@ -4,7 +4,7 @@ import zset
 import izset
 import circuit
 
-val n = 8000
+val n = 80_000
 val steps = 200
 val use-new = True
 

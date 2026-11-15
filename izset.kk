@@ -31,7 +31,7 @@ pub fun lookup(ix : izset<k,a>, key : k, ?k/cmp : (k,k) -> order) : zset<a>
 
 // Index a (small) Z-set by key. `groups` sorts by key with a stable sort, so each
 // group's rows stay in the zset's own order and need no re-sorting.
-pub fun index-by(z : zset<a>, key : a -> e k, ?k/cmp : (k,k) -> order) : e izset<k,a>
+pub fun index-by(z : zset<a>, key : a -> k, ?k/cmp : (k,k) -> order) : izset<k,a>
   val gs = zset/groups(z, key, k/cmp)
   Izset(gs.foldl(tmap/empty(), fn(t, g) tmap/insert(t, g.fst, Zset(g.snd), k/cmp)))
 
