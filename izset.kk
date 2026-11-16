@@ -55,7 +55,7 @@ pub fun probe( small : izset<k,a>, big : izset<k,b>, f : (a,b) -> c
   fun visit(acc, key, ga)
     match tmap/lookup(big.by-key, key, k/cmp)
       Nothing -> acc
-      Just(gb) -> ga.items.flatmap(fn(l) gb.items.map(fn(r) (f(l.fst, r.fst), l.snd * r.snd))) ++ acc
+      Just(gb) -> ga.items.flatmap(fn(l) gb.items.smap(fn(r) (f(l.fst, r.fst), l.snd * r.snd))) ++ acc
   tmap/fold(small.by-key, Nil, visit)
 
 // ---- inspection (tests, debugging) -----------------------------------------

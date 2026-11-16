@@ -2,6 +2,19 @@ module zset
 import std/core/undiv
 
 
+
+// Stack-safe list map.
+// std/core/list's `map` is declared `fip` and, in Koka v3.2.9, overflows the stack on
+// long lists (about 80,000 elements with the default 8 MB stack). The same definition
+// written as an ordinary function gets tail-recursion-modulo-constructor and runs in
+// constant stack, so everything in this library that maps over a list of unbounded
+// length uses this instead.
+pub fun smap(xs : list<a>, f : a -> e b) : e list<b>
+  match xs
+    Nil -> Nil
+    Cons(x, xx) -> Cons(f(x), smap(xx, f))
+
+
 // ---------------------------------------------------------------------------
 // Type and basic constructors
 // ---------------------------------------------------------------------------
@@ -10,7 +23,7 @@ pub struct zset<k>(items : list<(k, int)>)
 
 pub fun zset/show(zset: zset<k>, ?show: (k) -> string) : total string
   val sign  = fn(w : int) if w > 0 then "+" else ""
-  val parts = zset.items.map(fn(p) show(p.fst) ++ " -> " ++ sign(p.snd) ++ p.snd.show)
+  val parts = zset.items.smap(fn(p) show(p.fst) ++ " -> " ++ sign(p.snd) ++ p.snd.show)
   "{" ++ parts.join(", ") ++ "}"
 
 pub fun empty()
@@ -71,7 +84,7 @@ pub fun from-list(xs : list<(k,int)>, ?cmp : (k,k) -> order) : zset<k>
 
 // Convenience: every key gets weight +1 (a plain set of insertions).
 pub fun of-keys(xs : list<k>, ?cmp : (k,k) -> order) : zset<k>
-  from-list(xs.map(fn(x) (x,1)), cmp)
+  from-list(xs.smap(fn(x) (x,1)), cmp)
 
 pub fun to-list(z : zset<k>) : list<(k,int)>
   z.items
@@ -101,7 +114,7 @@ pub fun plus(a : zset<k>, b : zset<k>, ?cmp : (k,k) -> order) : zset<k>
   Zset(merge-items(a.items, b.items, cmp))
 
 pub fun neg(a : zset<k>) : zset<k>
-  Zset(a.items.map(fn(p) (p.fst, 0 - p.snd)))
+  Zset(a.items.smap(fn(p) (p.fst, 0 - p.snd)))
 
 // TODO this could be (-)
  
@@ -120,7 +133,7 @@ pub fun filter(a : zset<k>, pred : k -> e bool) : e zset<k>
 // Map can send distinct keys to the same key (weights add, possibly cancelling)
 // and can reorder keys, so the result is re-normalised.
 pub fun map(a : zset<k>, f : k -> e j, ?cmp : (j,j) -> order) : e zset<j>
-  from-list(a.items.map(fn(p) (f(p.fst), p.snd)), cmp)
+  from-list(a.items.smap(fn(p) (f(p.fst), p.snd)), cmp)
 
 // ---------------------------------------------------------------------------
 // Join with explicit key extractors (sort-merge)
@@ -140,7 +153,7 @@ fun group-runs(xs : list<(k,v)>, ?cmp : (k,k) -> order) : list<(k,list<v>)>
     Cons((k,v), rest) -> group-run(k, [v], rest, cmp)
 
 pub fun groups(z : zset<a>, key : a -> k, cmp : (k,k) -> order) : list<(k,list<(a,int)>)>
-  val keyed  = z.items.map(fn(p) (key(p.fst), p))
+  val keyed  = z.items.smap(fn(p) (key(p.fst), p))
   val sorted = keyed.msort(fn(p,q) cmp(p.fst, q.fst) != Gt)
   group-runs(sorted, cmp)
 
@@ -157,7 +170,7 @@ fun join-groups( gl : list<(k,list<(a,int)>)>, gr : list<(k,list<(b,int)>)>
         Eq ->
           // within a matching key, every left row pairs with every right row;
           // weights multiply
-          val here = ls.flatmap(fn(l) rs.map(fn(r) (f(l.fst, r.fst), l.snd * r.snd)))
+          val here = ls.flatmap(fn(l) rs.smap(fn(r) (f(l.fst, r.fst), l.snd * r.snd)))
           here ++ join-groups(gl', gr', f)
 
 // join(a, b, ka, kb, kcmp, f, ccmp): for every pair (x,y) with ka(x) == kb(y),

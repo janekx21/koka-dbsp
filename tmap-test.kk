@@ -30,7 +30,7 @@ fun maybe-eq(a : maybe<int>, b : maybe<int>) : bool
       Just(y) -> x == y
 
 fun render(xs : list<(int,int)>) : string
-  "[" ++ xs.map(fn(p) p.fst.show ++ ":" ++ p.snd.show).join(", ") ++ "]"
+  "[" ++ xs.smap(fn(p) p.fst.show ++ ":" ++ p.snd.show).join(", ") ++ "]"
 
 // ---------------------------------------------------------------------------
 // The reference model: a sorted association list
@@ -82,7 +82,7 @@ fun unit-tests() : console list<bool>
   val tb = t1.alter(2, fn(m) match m { Just(x) -> Just(x ++ "!"); Nothing -> Nothing })
   val tc = t1.alter(2, fn(_) Nothing)             // delete via alter
   val td = t1.alter(77, fn(_) Nothing)            // absent stays absent
-  val strs = fn(t : tmap<int,string>) t.to-list.map(fn(p) p.fst.show ++ p.snd).join(",")
+  val strs = fn(t : tmap<int,string>) t.to-list.smap(fn(p) p.fst.show ++ p.snd).join(",")
   val sorted = from-list([(5,"e"),(1,"a"),(4,"d"),(2,"b"),(3,"c")])
   val dups   = from-list([(1,"x"),(2,"y"),(1,"z")])
   val keys-in-order = t1.fold([], fn(acc, k, _) Cons(k, acc)).reverse

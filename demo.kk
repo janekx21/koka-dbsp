@@ -43,7 +43,7 @@ fun changes(ss : list<zset<int>>, prev : zset<int>) : list<zset<int>>
       Cons(d, changes(rest, prev'))
 
 fun render(zs : list<zset<int>>) : string
-  zs.map(fn(z) z.show()).join(" ; ")
+  zs.smap(fn(z) z.show()).join(" ; ")
 
 pub fun main() : console ()
   println("== pure step functions ==")

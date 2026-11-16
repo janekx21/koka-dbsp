@@ -27,7 +27,7 @@ fun jg( gl : list<(k,list<(a,int)>)>, gr : list<(k,list<(b,int)>)>, kcmp : (k,k)
       Cons((kr,rs), gr') -> match kcmp(kl,kr)
         Lt -> jg(gl', gr, kcmp, f)
         Gt -> jg(gl, gr', kcmp, f)
-        Eq -> ls.flatmap(fn(l) rs.map(fn(r) (f(l.fst, r.fst), l.snd * r.snd))) ++ jg(gl', gr', kcmp, f)
+        Eq -> ls.flatmap(fn(l) rs.smap(fn(r) (f(l.fst, r.fst), l.snd * r.snd))) ++ jg(gl', gr', kcmp, f)
 
 fun with-known-keys(a : zset<(int,int)>, b : zset<(int,int)>) : zset<(int,int)>
   from-list(jg(groups(a, key-of, cmp), groups(b, key-of, cmp), cmp, combine), rcmp)
@@ -38,7 +38,7 @@ fun with-opaque-keys(a : zset<(int,int)>, b : zset<(int,int)>, ka : ((int,int)) 
 pub fun main() : <console,ndet> ()
   val n = 8000
   val k = n / 2
-  val big = from-list(list(0, n - 1).map(fn(i) (((i % k, i), 1))), rcmp)
+  val big = from-list(list(0, n - 1).smap(fn(i) (((i % k, i), 1))), rcmp)
   val one = singleton((3, 999999), 1)
   val (d1, _) = elapsed(fn() with-known-keys(one, big).items.length)
   val (d2, _) = elapsed(fn() with-opaque-keys(one, big, key-of, key-of).items.length)

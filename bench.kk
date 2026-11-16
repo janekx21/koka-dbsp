@@ -21,7 +21,7 @@ fun next(seed : int) : int
   (seed * 1103515245 + 12345) % 2147483648
 
 fun load(k : int) : zset<(int,int)>
-  zset/from-list(list(0, n - 1).map(fn(i) ((i % k, i), 1)), rcmp)
+  zset/from-list(list(0, n - 1).smap(fn(i) ((i % k, i), 1)), rcmp)
 
 // old: flat state, regrouped every step
 fun ojoin(x : zset<(int,int)>, y : zset<(int,int)>) : zset<(int,int)>
