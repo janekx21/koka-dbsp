@@ -16,6 +16,8 @@ module circuit
 
 import std/core/undiv
 import zset
+import tmap
+import aggregate
 import izset
 
 // ---------------------------------------------------------------------------
@@ -159,6 +161,23 @@ pub fun join( l : stream<h,a>, r : stream<h,b>
   l.add-binary(r, join-state(),
     fn(st0, da, db) join-step(st0, da, db, ka, kb, f, acmp, bcmp, kcmp, ccmp))
 
+// -- non-linear operators (state lives in the node; see aggregate.kk) ----------
+
+// Rows with integral weight > 0, each with weight 1.
+pub fun distinct(s : stream<h,a>, ?cmp : (a,a) -> order) : st<h> stream<h,a>
+  s.add-unary(tmap/empty(), fn(st0, d) distinct-step(st0, d, cmp))
+
+// Group by `key`, fold each group with an accumulator aggregate (agg-count, agg-sum, ...),
+// and emit one row `out(key, value)` per group.
+pub fun aggregate-by( s : stream<h,a>, key : a -> k, ag : agg<a,t,v>, out : (k,v) -> c
+                    , kcmp : (k,k) -> order, ccmp : (c,c) -> order ) : st<h> stream<h,c>
+  s.add-unary(tmap/empty(), fn(st0, d) aggregate-step(st0, d, key, ag, out, kcmp, ccmp))
+
+// Group by `key` and compute `f` over each group's whole Z-set (min-row, max-row, ...).
+pub fun aggregate-group-by( s : stream<h,a>, key : a -> k, f : zset<a> -> maybe<v>, out : (k,v) -> c
+                          , acmp : (a,a) -> order, kcmp : (k,k) -> order, ccmp : (c,c) -> order )
+                          : st<h> stream<h,c>
+  s.add-unary(izset/empty(), fn(st0, d) aggregate-group-step(st0, d, key, f, out, acmp, kcmp, ccmp))
 // -- scheduler ---------------------------------------------------------------
 
 // One step: run every node once, in creation order.
