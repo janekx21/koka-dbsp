@@ -156,10 +156,10 @@ pub fun differentiate(s : stream<h,a>, ?cmp : (a,a) -> order) : st<h> stream<h,a
 // as state), the key, and the output row.
 pub fun join( l : stream<h,a>, r : stream<h,b>
             , ka : a -> k, kb : b -> k, f : (a,b) -> c
-            , acmp : (a,a) -> order, bcmp : (b,b) -> order
-            , kcmp : (k,k) -> order, ccmp : (c,c) -> order ) : st<h> stream<h,c>
+            , ?a/cmp : (a,a) -> order, ?b/cmp : (b,b) -> order
+            , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order ) : st<h> stream<h,c>
   l.add-binary(r, join-state(),
-    fn(st0, da, db) join-step(st0, da, db, ka, kb, f, acmp, bcmp, kcmp, ccmp))
+    fn(st0, da, db) join-step(st0, da, db, ka, kb, f, a/cmp, b/cmp, k/cmp, c/cmp))
 
 // -- non-linear operators (state lives in the node; see aggregate.kk) ----------
 
@@ -170,8 +170,8 @@ pub fun distinct(s : stream<h,a>, ?cmp : (a,a) -> order) : st<h> stream<h,a>
 // Group by `key`, fold each group with an accumulator aggregate (agg-count, agg-sum, ...),
 // and emit one row `out(key, value)` per group.
 pub fun aggregate-by( s : stream<h,a>, key : a -> k, ag : agg<a,t,v>, out : (k,v) -> c
-                    , kcmp : (k,k) -> order, ccmp : (c,c) -> order ) : st<h> stream<h,c>
-  s.add-unary(tmap/empty(), fn(st0, d) aggregate-step(st0, d, key, ag, out, kcmp, ccmp))
+                    , ?k/cmp : (k,k) -> order, ?c/cmp : (c,c) -> order ) : st<h> stream<h,c>
+  s.add-unary(tmap/empty(), fn(st0, d) aggregate-step(st0, d, key, ag, out, k/cmp, c/cmp))
 
 // Group by `key` and compute `f` over each group's whole Z-set (min-row, max-row, ...).
 pub fun aggregate-group-by( s : stream<h,a>, key : a -> k, f : zset<a> -> maybe<v>, out : (k,v) -> c

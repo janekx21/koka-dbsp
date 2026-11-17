@@ -90,8 +90,7 @@ fun changes( k : k, before : maybe<v>, after : maybe<v>, out : (k,v) -> c
 pub struct agg<a,s,v>(init : s, add : (s,a,int) -> s, finish : s -> maybe<v>, zero : s -> bool)
 
 // Number of rows (sum of weights). The group exists while its count is > 0.
-pub fun agg-count() : agg<a,int,int>
-  Agg(0, fn(n, _row, w) n + w, fn(n) if n > 0 then Just(n) else Nothing, fn(n) n == 0)
+pub val agg-count = Agg(0, fn(n, _row, w) n + w, fn(n) if n > 0 then Just(n) else Nothing, fn(n) n == 0)
 
 // Sum of f(row) weighted by row weight. State is (count, total); the group exists
 // while its count is > 0.
